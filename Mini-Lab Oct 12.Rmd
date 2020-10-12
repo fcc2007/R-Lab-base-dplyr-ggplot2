@@ -1,0 +1,216 @@
+---
+title: "A mini-lab using base R and packages of dplyr and ggplot2"
+author: "Jimmy Fang"
+date: "10/12/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+11921 users in a Chinese social Q&A community were tracked for a 20-week period, and key variables of users were collected. They include name, gender, count of answers, count of questions and count of followers, etc. In this lab, I will do some descriptive analysis (including drawing graphs) on this data set by using base R and packages of dplyr and ggplot2.
+
+## Check packages and import dataset
+```{r dataset}
+library(dplyr)
+library(pander)
+library(ggplot2)
+library(ggthemes)
+library(gridExtra)
+
+setwd("/Users/jimmyfang/Desktop/R Mini-lab Oct 12")
+grassroots <- read.csv("grassroots.csv")
+
+# define date
+grassroots <- grassroots %>%
+  mutate(date = substr(date,1,10),
+         date = as.Date(date,"%Y-%m-%d"))
+```
+
+## Total counts by date
+```{r total counts}
+# base
+attach(grassroots)
+aggregate(cbind(answer_count, articles_count, question_count, favorite_count, favorited_count, 
+                follower_count, following_count,following_favlists_count, following_question_count, 
+                following_topic_count, thanked_count, voteup_count), 
+          by=list(Date = date), FUN=sum)
+detach(grassroots)
+
+# dplyr
+grassroots %>%
+  group_by(date) %>%
+  select(answer_count, articles_count, question_count, favorite_count, favorited_count, 
+                follower_count, following_count,following_favlists_count, following_question_count, 
+                following_topic_count, thanked_count, voteup_count) %>%
+  summarise_each(funs = sum) %>%
+  pander()
+```
+
+## Mean counts by date
+```{r mean counts}
+# base
+attach(grassroots)
+aggregate(cbind(answer_count, articles_count, question_count, favorite_count, favorited_count, 
+                follower_count, following_count,following_favlists_count, following_question_count, 
+                following_topic_count, thanked_count, voteup_count), 
+          by=list(Date = date), FUN=mean)
+detach(grassroots)
+
+# dplyr
+grassroots %>%
+  group_by(date) %>%
+  select(answer_count, articles_count, question_count, favorite_count, favorited_count, 
+                follower_count, following_count,following_favlists_count, following_question_count, 
+                following_topic_count, thanked_count, voteup_count) %>%
+  summarise_each(funs = mean) %>%
+  pander()
+```
+
+## Standard deviation of counts by date
+```{r std counts}
+# base
+attach(grassroots)
+aggregate(cbind(answer_count, articles_count, question_count, favorite_count, favorited_count, 
+                follower_count, following_count,following_favlists_count, following_question_count, 
+                following_topic_count, thanked_count, voteup_count), 
+          by=list(Date = date), FUN=sd)
+detach(grassroots)
+
+# dplyr
+grassroots %>%
+  group_by(date) %>%
+  select(answer_count, articles_count, question_count, favorite_count, favorited_count, 
+                follower_count, following_count,following_favlists_count, following_question_count, 
+                following_topic_count, thanked_count, voteup_count) %>%
+  summarise_each(funs = sd) %>%
+  pander()
+```
+
+## Finding out the users with largest followers
+```{r users with largest followers}
+# base
+attach(grassroots)
+grassroots[order(date,-follower_count),][seq(1,238420,11921),c(16,1:2,19,4:6,8:11,22:23,26:27)]
+detach(grassroots)
+
+# dplyr
+grassroots %>%
+  arrange(date,desc(follower_count)) %>%
+  slice(seq(1,238420,11921)) %>%
+  select(c(16,1:2,19,4:6,8:11,22:23,26:27)) %>%
+  pander()
+```
+
+## Finding out users with largest incremental followers
+```{r users with largest incremental followers}
+# base
+grassroots1 <- grassroots[order(grassroots$date,
+                                grassroots$follower_count),][,c(16,1:2,19,4:6,8:11,22:23,26:27)]
+grassroots1$follower_diff <- c(NA,diff(grassroots1$follower_count))
+grassroots1[seq(1,238420,11921),16] <- NA
+
+attach(grassroots1)
+grassroots1[order(date,-follower_diff),][seq(1,238420,11921),]
+detach(grassroots1)
+
+# dplyr
+grassroots1 %>%
+  arrange(date, desc(follower_diff)) %>%
+  slice(seq(1,238420,11921)) %>%
+  pander()
+
+remove(grassroots1) # drop grassroot1
+```
+
+## ScatterPlot between answer count and voteup count in the 1st week
+```{r scatterplot}
+# base
+plot(grassroots[c(1:11921),c(1,26)],,col="blue",pch=16,cex=0.5, main="Scatterplot")
+abline(lm(voteup_count~answer_count, data=grassroots), col = "red", lwd = 3)
+
+# ggplot2
+ggplot(grassroots[c(1:11921),],aes(x=answer_count,y=voteup_count)) +
+      geom_point(col="blue") +
+      geom_smooth(method = 'lm',se=FALSE,col = "red") +
+      labs(title = "ScatterPlot",x = "Height in Inches", y="Salary in Dollars") +
+      theme_gdocs()+
+      theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5))
+```
+
+## Boxplots of answer count by gender in the 1st week
+```{r boxplot}
+# base
+grassroots$gender[grassroots$gender==1] <- "male"
+grassroots$gender[grassroots$gender==0] <- "female"
+grassroots$gender[grassroots$gender==-1] <- "unknown"
+boxplot(answer_count ~ gender, data = grassroots[c(1:11921),], main = "Answer Count by Gender")
+by(grassroots[c(1:11921),1],grassroots[c(1:11921),12], summary) # check five-number summary
+
+# ggplot2
+ggplot(grassroots[c(1:11921),], aes(x = gender, y = answer_count)) + 
+       stat_boxplot(geom = "errorbar", width = 0.75, coef = 1.5) +
+      geom_boxplot() +
+      labs(title="Answer Count by Gender",
+        x ="gender", y = "answer count") +
+      theme_few()+
+      theme(plot.title = element_text(hjust = 0.5))
+```
+
+## Histogram of answer count and follower count in the 1st week
+```{r histogram}
+# base
+par(mfrow=c(2,1))
+hist(grassroots[c(1:11921),1], breaks = seq(0,1240,by=10), freq = F,
+     col = "green", xlim = c(0,100), main = "Histogram of Answer Count", xlab = "answer count")
+hist(grassroots[c(1:11921),6], breaks = seq(0,100,by=10), freq = F,
+     col = "orange", xlim = c(0,100), main = "Histogram of Follower Count", xlab = "follower count")
+par(mfrow=c(1,1))
+
+# ggplot2
+Hist_answer <- ggplot(grassroots[c(1:11921),],aes(answer_count)) +
+      geom_histogram(aes(y = ..density..),breaks = seq(0,1240,by=10),
+                     fill = "green",color="black") +
+      labs(title="Histogram",x ="answer count") +
+      theme_classic()+
+      theme(plot.title = element_text(hjust = 0.5, face="bold"))
+
+Hist_follower <- ggplot(grassroots[c(1:11921),],aes(follower_count)) +
+      geom_histogram(aes(y = ..density..),breaks = seq(0,100,by=10),
+                     fill = "orange",color="black") +
+      labs(title="Histogram",x ="follower count") +
+      theme_classic()+
+      theme(plot.title = element_text(hjust = 0.5, face="bold"))
+
+grid.arrange(Hist_answer,Hist_follower)
+
+remove(Hist_answer,Hist_follower) # drop Hist_answer and Hist_follower
+```
+
+## The trend of follower count of user 'hou-cheng-yao'
+```{r trend}
+# base
+hcy_trend <- grassroots[which(grassroots$url_token == "hou-cheng-yao"),]
+plot(hcy_trend$date, hcy_trend$follower_count, type = "b", col = "blue",
+     main = "Trend of Follower Count", sub = "hou-cheng-yao", 
+     xlab = "date", ylab = "follower count")
+
+# ggplot2
+ggplot(hcy_trend,aes(x=date,y=follower_count)) +
+      geom_line(color = "blue") +
+      labs(title = "Trend of Follower Count", subtitle = "hou-cheng-yao",
+           x = "date", y="follower count") +
+      theme_gdocs()+
+      theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5))
+
+remove(hcy_trend) # drop hcy_trend
+```
+
+## Conclusion
+In this lab, I look into the dataset from many perspectives by using base R and packages of dplyr or ggplot2. The main objective is to display how to code with those packages, thus neglecting the implication of results. Interested readers can work on them. All related resources on those packages could be found at https://www.r-project.org. I am particularly grateful to the authors who created those two smart packages.
+
